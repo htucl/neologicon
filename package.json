@@ -1,0 +1,12 @@
+{
+  "name": "neologicon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A GitHub-driven dictionary of neologisms — words that should have existed.",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node serve.mjs",
+    "dev": "node build.mjs && node serve.mjs"
+  }
+}

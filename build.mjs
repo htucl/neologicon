@@ -8,7 +8,7 @@ const SITE = {
   title: 'Neologicon',
   tagline: 'Words that should have existed.',
   url: process.env.SITE_URL || 'https://neologicon.com',
-  repo: process.env.REPO_URL || 'https://github.com/YOUR_GITHUB_USERNAME/neologicon',
+  repo: process.env.REPO_URL || 'https://github.com/htucl/neologicon',
 };
 
 const CATEGORIES = {

@@ -1,25 +1,103 @@
 // Neologicon static site builder — zero dependencies.
-// Reads words/*.md, writes a complete site to dist/.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, rmSync } from 'node:fs';
+// Reads words/*.md (+ translations/<locale>.json), writes a complete multilingual site to dist/.
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SITE = {
   title: 'Neologicon',
-  tagline: 'Words that should have existed.',
   url: process.env.SITE_URL || 'https://neologicon.com',
   repo: process.env.REPO_URL || 'https://github.com/htucl/neologicon',
 };
 
-const CATEGORIES = {
-  tactile: { name: 'Tactile', desc: 'Physical sensations & touch' },
-  sounds: { name: 'Sounds', desc: 'Onomatopoeia & noises' },
-  social: { name: 'Social', desc: 'Emotional & social moments' },
-  bodily: { name: 'Bodily', desc: 'Bodily states & sensations' },
-  perception: { name: 'Perception', desc: 'Visual & perceptual' },
-  movement: { name: 'Movement', desc: 'Physical action' },
-  environment: { name: 'Environment', desc: 'Sensory phenomena in the world' },
+const CATEGORIES = ['tactile', 'sounds', 'social', 'bodily', 'perception', 'movement', 'environment'];
+
+// ---------- locales ----------
+
+const LOCALES = {
+  en: {
+    htmlLang: 'en', prefix: '', label: 'EN',
+    cat: { tactile: ['Tactile', 'Physical sensations & touch'], sounds: ['Sounds', 'Onomatopoeia & noises'], social: ['Social', 'Emotional & social moments'], bodily: ['Bodily', 'Bodily states & sensations'], perception: ['Perception', 'Visual & perceptual'], movement: ['Movement', 'Physical action'], environment: ['Environment', 'Sensory phenomena in the world'] },
+    s: {
+      tagline: 'Words that should have existed.',
+      metaHome: 'A community dictionary of {n} neologisms — invented words for feelings, sounds, and moments English forgot to name.',
+      heroTitle: 'Words that <em>should</em> have existed.',
+      heroSub: 'A dictionary of neologisms — new words for the feelings, sounds, and tiny moments English never got around to naming. Community-edited, one pull request at a time.',
+      searchPh: 'Search {n} words…', navBrowse: 'browse', navRandom: 'random', navAbout: 'about',
+      wotd: 'word of the day', browseCat: 'browse by category', recent: 'recently added', coin: 'coin a word',
+      coinText: 'Invented a word the language needs? Neologicon is a public GitHub repository — every word is a markdown file, and every new word is a pull request.',
+      coinButton: 'Submit a word', seeAll: 'See all {n} words →', allTitle: 'All {n} words', allMeta: 'Every word in the Neologicon, A to Z.',
+      nWords: '{n} words', coinedBy: 'coined by', added: 'added', category: 'category',
+      suggestEdit: 'Suggest an edit on GitHub ↗', catCrumb: 'category',
+      e404Title: 'Not a word. <em>Yet.</em>', e404Sub: "This page doesn't exist — but maybe the word should.", e404Coin: 'Coin it?', e404Back: '← Back to the dictionary',
+      randomTitle: 'Rolling the dice…', randomNoscript: 'JavaScript is off — try the full list instead.',
+      footerCount: '{n} words and counting', footerAdd: 'add yours on GitHub',
+      noMatch: 'No match', coinIt: 'coin it?', aboutTitle: 'About',
+    },
+  },
+  hi: {
+    htmlLang: 'hi', prefix: '/hi', label: 'हिंदी',
+    cat: { tactile: ['स्पर्श', 'शारीरिक एहसास और छुअन'], sounds: ['ध्वनियाँ', 'आवाज़ें और ध्वनि-अनुकरण'], social: ['सामाजिक', 'भावनात्मक और सामाजिक पल'], bodily: ['शारीरिक', 'शरीर की अवस्थाएँ'], perception: ['बोध', 'दृश्य और अनुभूति'], movement: ['गति', 'शारीरिक क्रिया'], environment: ['परिवेश', 'आसपास की संवेदी घटनाएँ'] },
+    s: {
+      tagline: 'शब्द जो होने चाहिए थे।',
+      metaHome: '{n} नवशब्दों का सामुदायिक शब्दकोश — उन एहसासों, आवाज़ों और पलों के लिए गढ़े गए शब्द जिन्हें अंग्रेज़ी नाम देना भूल गई।',
+      heroTitle: 'ऐसे शब्द जो <em>होने ही</em> चाहिए थे।',
+      heroSub: 'नवशब्दों का शब्दकोश — उन एहसासों, आवाज़ों और छोटे पलों के लिए नए शब्द जिन्हें अंग्रेज़ी कभी नाम नहीं दे पाई। समुदाय-संपादित, एक pull request प्रति शब्द।',
+      searchPh: '{n} शब्द खोजें…', navBrowse: 'ब्राउज़', navRandom: 'रैंडम', navAbout: 'परिचय',
+      wotd: 'आज का शब्द', browseCat: 'श्रेणी अनुसार देखें', recent: 'हाल में जोड़े गए', coin: 'शब्द गढ़ें',
+      coinText: 'कोई ऐसा शब्द गढ़ा है जिसकी भाषा को ज़रूरत है? Neologicon एक सार्वजनिक GitHub repository है — हर शब्द एक markdown फ़ाइल है, और हर नया शब्द एक pull request।',
+      coinButton: 'शब्द भेजें', seeAll: 'सभी {n} शब्द देखें →', allTitle: 'सभी {n} शब्द', allMeta: 'Neologicon का हर शब्द, A से Z तक।',
+      nWords: '{n} शब्द', coinedBy: 'गढ़ा', added: 'जोड़ा गया', category: 'श्रेणी',
+      suggestEdit: 'GitHub पर संपादन सुझाएँ ↗', catCrumb: 'श्रेणी',
+      e404Title: 'यह शब्द नहीं है। <em>अभी तक।</em>', e404Sub: 'यह पृष्ठ मौजूद नहीं है — पर शायद यह शब्द होना चाहिए।', e404Coin: 'गढ़ें?', e404Back: '← शब्दकोश पर लौटें',
+      randomTitle: 'पासा फेंक रहे हैं…', randomNoscript: 'JavaScript बंद है — पूरी सूची आज़माएँ।',
+      footerCount: '{n} शब्द और बढ़ते हुए', footerAdd: 'GitHub पर अपना शब्द जोड़ें',
+      noMatch: 'कोई मेल नहीं', coinIt: 'गढ़ें?', aboutTitle: 'परिचय',
+    },
+  },
+  es: {
+    htmlLang: 'es', prefix: '/es', label: 'ES',
+    cat: { tactile: ['Táctil', 'Sensaciones físicas y tacto'], sounds: ['Sonidos', 'Onomatopeyas y ruidos'], social: ['Social', 'Momentos emocionales y sociales'], bodily: ['Corporal', 'Estados del cuerpo'], perception: ['Percepción', 'Visual y perceptivo'], movement: ['Movimiento', 'Acción física'], environment: ['Entorno', 'Fenómenos sensoriales del mundo'] },
+    s: {
+      tagline: 'Palabras que deberían haber existido.',
+      metaHome: 'Un diccionario comunitario de {n} neologismos: palabras inventadas para sensaciones, sonidos y momentos que el inglés olvidó nombrar.',
+      heroTitle: 'Palabras que <em>deberían</em> haber existido.',
+      heroSub: 'Un diccionario de neologismos: palabras nuevas para las sensaciones, los sonidos y los pequeños momentos que el inglés nunca llegó a nombrar. Editado por la comunidad, un pull request a la vez.',
+      searchPh: 'Buscar entre {n} palabras…', navBrowse: 'explorar', navRandom: 'azar', navAbout: 'acerca de',
+      wotd: 'palabra del día', browseCat: 'explorar por categoría', recent: 'añadidas recientemente', coin: 'acuña una palabra',
+      coinText: '¿Has inventado una palabra que el idioma necesita? Neologicon es un repositorio público de GitHub: cada palabra es un archivo markdown y cada palabra nueva es un pull request.',
+      coinButton: 'Enviar una palabra', seeAll: 'Ver las {n} palabras →', allTitle: 'Las {n} palabras', allMeta: 'Todas las palabras del Neologicon, de la A a la Z.',
+      nWords: '{n} palabras', coinedBy: 'acuñada por', added: 'añadida', category: 'categoría',
+      suggestEdit: 'Sugerir una edición en GitHub ↗', catCrumb: 'categoría',
+      e404Title: 'No es una palabra. <em>Todavía.</em>', e404Sub: 'Esta página no existe, pero quizá la palabra debería.', e404Coin: '¿La acuñas?', e404Back: '← Volver al diccionario',
+      randomTitle: 'Lanzando los dados…', randomNoscript: 'JavaScript está desactivado: prueba la lista completa.',
+      footerCount: '{n} palabras y contando', footerAdd: 'añade la tuya en GitHub',
+      noMatch: 'Sin resultados', coinIt: '¿la acuñas?', aboutTitle: 'Acerca de',
+    },
+  },
+  fr: {
+    htmlLang: 'fr', prefix: '/fr', label: 'FR',
+    cat: { tactile: ['Tactile', 'Sensations physiques et toucher'], sounds: ['Sons', 'Onomatopées et bruits'], social: ['Social', 'Moments émotionnels et sociaux'], bodily: ['Corporel', 'États du corps'], perception: ['Perception', 'Visuel et perceptif'], movement: ['Mouvement', 'Action physique'], environment: ['Environnement', 'Phénomènes sensoriels du monde'] },
+    s: {
+      tagline: 'Des mots qui auraient dû exister.',
+      metaHome: 'Un dictionnaire communautaire de {n} néologismes : des mots inventés pour les sensations, les sons et les instants que l’anglais a oublié de nommer.',
+      heroTitle: 'Des mots qui <em>auraient dû</em> exister.',
+      heroSub: 'Un dictionnaire de néologismes : des mots nouveaux pour les sensations, les sons et les petits instants que l’anglais n’a jamais pris le temps de nommer. Édité par la communauté, une pull request à la fois.',
+      searchPh: 'Rechercher parmi {n} mots…', navBrowse: 'parcourir', navRandom: 'hasard', navAbout: 'à propos',
+      wotd: 'mot du jour', browseCat: 'parcourir par catégorie', recent: 'ajoutés récemment', coin: 'forgez un mot',
+      coinText: 'Vous avez inventé un mot dont la langue a besoin ? Neologicon est un dépôt GitHub public : chaque mot est un fichier markdown, et chaque nouveau mot est une pull request.',
+      coinButton: 'Proposer un mot', seeAll: 'Voir les {n} mots →', allTitle: 'Les {n} mots', allMeta: 'Tous les mots du Neologicon, de A à Z.',
+      nWords: '{n} mots', coinedBy: 'forgé par', added: 'ajouté', category: 'catégorie',
+      suggestEdit: 'Proposer une modification sur GitHub ↗', catCrumb: 'catégorie',
+      e404Title: 'Pas un mot. <em>Pas encore.</em>', e404Sub: 'Cette page n’existe pas — mais le mot, lui, le devrait peut-être.', e404Coin: 'On le forge ?', e404Back: '← Retour au dictionnaire',
+      randomTitle: 'On lance les dés…', randomNoscript: 'JavaScript est désactivé : essayez la liste complète.',
+      footerCount: '{n} mots et ça continue', footerAdd: 'ajoutez le vôtre sur GitHub',
+      noMatch: 'Aucun résultat', coinIt: 'on le forge ?', aboutTitle: 'À propos',
+    },
+  },
 };
+
+const fmt = (s, n) => s.replace('{n}', n);
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const DIST = join(ROOT, 'dist');
@@ -67,31 +145,50 @@ const words = readdirSync(join(ROOT, 'words'))
 
 if (words.length === 0) throw new Error('No word entries found in words/');
 
+// translations: { locale: { slug: definition } }
+const TR = {};
+for (const loc of Object.keys(LOCALES)) {
+  if (loc === 'en') continue;
+  const file = join(ROOT, 'translations', `${loc}.json`);
+  TR[loc] = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+}
+const defIn = (w, loc) => (loc === 'en' ? w.definition : TR[loc]?.[w.slug] || w.definition);
+
 const byCategory = {};
 for (const w of words) (byCategory[w.category] ??= []).push(w);
 
-const catInfo = (slug) =>
-  CATEGORIES[slug] || { name: slug.charAt(0).toUpperCase() + slug.slice(1), desc: '' };
+const catInfo = (slug, L) =>
+  L.cat[slug] || [slug.charAt(0).toUpperCase() + slug.slice(1), ''];
 
 // ---------- html helpers ----------
 
 const esc = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function layout({ title, description, path, content, bodyClass = '', noindex = false }) {
-  const fullTitle = path === '/' ? `${SITE.title} — ${SITE.tagline}` : `${title} — ${SITE.title}`;
+// path WITHOUT locale prefix; returns full page html
+function layout(L, { title, description, path, content, bodyClass = '', noindex = false, extraHead = '' }) {
+  const s = L.s;
+  const here = `${L.prefix}${path}`;
+  const fullTitle = path === '/' ? `${SITE.title} — ${s.tagline}` : `${title} — ${SITE.title}`;
+  const alternates = Object.values(LOCALES)
+    .map((o) => `<link rel="alternate" hreflang="${o.htmlLang}" href="${SITE.url}${o.prefix}${path}">`)
+    .join('\n') + `\n<link rel="alternate" hreflang="x-default" href="${SITE.url}${path}">`;
+  const switcher = Object.values(LOCALES)
+    .map((o) => `<a href="${o.prefix}${path}"${o.htmlLang === L.htmlLang ? ' class="active"' : ''} lang="${o.htmlLang}">${o.label}</a>`)
+    .join('');
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${L.htmlLang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(fullTitle)}</title>
 <meta name="description" content="${esc(description)}">
-${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${SITE.url}${path}">`}
+${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${SITE.url}${here}">`}
+${noindex ? '' : alternates}
 <meta property="og:title" content="${esc(fullTitle)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:type" content="website">
-<meta property="og:url" content="${SITE.url}${path}">
+<meta property="og:url" content="${SITE.url}${here}">
 <meta name="theme-color" content="#f7f2e7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171310" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -99,23 +196,25 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
+${extraHead}
 </head>
-<body class="${bodyClass}">
+<body class="${bodyClass}" data-prefix="${L.prefix}" data-nomatch="${esc(s.noMatch)}" data-coinit="${esc(s.coinIt)}" data-coinhref="${SITE.repo}/new/main/words">
 <header class="topbar">
-  <a class="wordmark" href="/">neologicon<span class="dot">.</span></a>
+  <a class="wordmark" href="${L.prefix}/">neologicon<span class="dot">.</span></a>
   <nav class="nav">
-    <a href="/all/">browse</a>
-    <a href="/random/">random</a>
-    <a href="/about/">about</a>
+    <a href="${L.prefix}/all/">${s.navBrowse}</a>
+    <a href="${L.prefix}/random/">${s.navRandom}</a>
+    <a href="${L.prefix}/about/">${s.navAbout}</a>
     <a href="${SITE.repo}" rel="noopener">github</a>
   </nav>
+  <nav class="lang-switch" aria-label="Language">${switcher}</nav>
 </header>
 <main>
 ${content}
 </main>
 <footer class="footer">
-  <p class="footer-tagline">${esc(SITE.tagline)}</p>
-  <p>${words.length} words and counting · <a href="${SITE.repo}" rel="noopener">add yours on GitHub</a></p>
+  <p class="footer-tagline">${s.tagline}</p>
+  <p>${fmt(s.footerCount, words.length)} · <a href="${SITE.repo}" rel="noopener">${s.footerAdd}</a></p>
 </footer>
 <script src="/app.js" defer></script>
 </body>
@@ -124,11 +223,11 @@ ${content}
 
 const posAbbrev = { noun: 'n.', verb: 'v.', adjective: 'adj.', adverb: 'adv.', interjection: 'interj.' };
 
-function wordCard(w, { big = false } = {}) {
+function wordCard(w, L, { big = false } = {}) {
   return `<article class="card${big ? ' card-big' : ''}">
-  <h3 class="card-word"><a href="/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${posAbbrev[w.pos] || w.pos}</span></h3>
-  <p class="card-def">${esc(w.definition)}</p>
-  ${w.example ? `<blockquote class="card-ex">"${esc(w.example)}"</blockquote>` : ''}
+  <h3 class="card-word"><a href="${L.prefix}/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${posAbbrev[w.pos] || w.pos}</span></h3>
+  <p class="card-def">${esc(defIn(w, L.htmlLang))}</p>
+  ${w.example ? `<blockquote class="card-ex" lang="en">"${esc(w.example)}"</blockquote>` : ''}
 </article>`;
 }
 
@@ -137,164 +236,165 @@ function wordCard(w, { big = false } = {}) {
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });
 
-function page(path, html) {
-  const dir = join(DIST, path);
+function page(fullPath, html) {
+  const dir = join(DIST, fullPath);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.html'), html);
 }
 
-// word of the day (build-time fallback; app.js recomputes the same formula daily)
 const wotdIndex = Math.floor(Date.now() / 86400000) % words.length;
-const wotd = words[wotdIndex];
-
-// --- home ---
 const recent = [...words]
   .sort((a, b) => (b.added || '').localeCompare(a.added || '') || a.word.localeCompare(b.word))
   .slice(0, 6);
 
-page('/', layout({
-  title: SITE.title,
-  description: `${SITE.tagline} A community dictionary of ${words.length} neologisms — invented words for feelings, sounds, and moments English forgot to name.`,
-  path: '/',
-  content: `
+for (const L of Object.values(LOCALES)) {
+  const loc = L.htmlLang;
+  const s = L.s;
+
+  // --- home ---
+  page(`${L.prefix}/`, layout(L, {
+    title: SITE.title,
+    description: fmt(s.metaHome, words.length),
+    path: '/',
+    content: `
 <section class="hero">
-  <h1 class="hero-title">Words that <em>should</em> have existed.</h1>
-  <p class="hero-sub">A dictionary of neologisms — new words for the feelings, sounds, and tiny moments English never got around to naming. Community-edited, one pull request at a time.</p>
+  <h1 class="hero-title">${s.heroTitle}</h1>
+  <p class="hero-sub">${s.heroSub}</p>
   <div class="search-wrap">
-    <input id="search" class="search" type="search" placeholder="Search ${words.length} words…" autocomplete="off" aria-label="Search words">
+    <input id="search" class="search" type="search" placeholder="${esc(fmt(s.searchPh, words.length))}" autocomplete="off" aria-label="${esc(fmt(s.searchPh, words.length))}">
     <div id="search-results" class="search-results" hidden></div>
   </div>
 </section>
 
 <section class="section">
-  <h2 class="section-label">word of the day</h2>
-  <div id="wotd">${wordCard(wotd, { big: true })}</div>
+  <h2 class="section-label">${s.wotd}</h2>
+  <div id="wotd">${wordCard(words[wotdIndex], L, { big: true })}</div>
 </section>
 
 <section class="section">
-  <h2 class="section-label">browse by category</h2>
+  <h2 class="section-label">${s.browseCat}</h2>
   <div class="cat-grid">
     ${Object.keys(byCategory).sort().map((slug) => {
-      const c = catInfo(slug);
-      return `<a class="cat-tile" href="/category/${slug}/"><strong>${esc(c.name)}</strong><span>${byCategory[slug].length} words</span></a>`;
+      const [name] = catInfo(slug, L);
+      return `<a class="cat-tile" href="${L.prefix}/category/${slug}/"><strong>${esc(name)}</strong><span>${fmt(s.nWords, byCategory[slug].length)}</span></a>`;
     }).join('\n    ')}
   </div>
 </section>
 
 <section class="section">
-  <h2 class="section-label">recently added</h2>
+  <h2 class="section-label">${s.recent}</h2>
   <div class="card-grid">
-    ${recent.map((w) => wordCard(w)).join('\n')}
+    ${recent.map((w) => wordCard(w, L)).join('\n')}
   </div>
-  <p class="more-link"><a href="/all/">See all ${words.length} words →</a></p>
+  <p class="more-link"><a href="${L.prefix}/all/">${fmt(s.seeAll, words.length)}</a></p>
 </section>
 
 <section class="section contribute">
-  <h2 class="section-label">coin a word</h2>
-  <p>Invented a word the language needs? Neologicon is a public GitHub repository — every word is a markdown file, and every new word is a pull request.</p>
-  <p><a class="button" href="${SITE.repo}/new/main/words" rel="noopener">Submit a word</a></p>
+  <h2 class="section-label">${s.coin}</h2>
+  <p>${s.coinText}</p>
+  <p><a class="button" href="${SITE.repo}/new/main/words" rel="noopener">${s.coinButton}</a></p>
 </section>`,
-}));
+  }));
 
-// --- all words (A–Z) ---
-const byLetter = {};
-for (const w of words) (byLetter[w.word[0].toUpperCase()] ??= []).push(w);
+  // --- all words (A–Z) ---
+  const byLetter = {};
+  for (const w of words) (byLetter[w.word[0].toUpperCase()] ??= []).push(w);
 
-page('/all/', layout({
-  title: 'All words',
-  description: `Every word in the Neologicon, A to Z. ${words.length} neologisms and counting.`,
-  path: '/all/',
-  content: `
+  page(`${L.prefix}/all/`, layout(L, {
+    title: fmt(s.allTitle, words.length),
+    description: s.allMeta,
+    path: '/all/',
+    content: `
 <section class="section">
-  <h1 class="page-title">All ${words.length} words</h1>
+  <h1 class="page-title">${fmt(s.allTitle, words.length)}</h1>
   <nav class="letter-nav">${Object.keys(byLetter).sort().map((l) => `<a href="#${l}">${l}</a>`).join(' ')}</nav>
   ${Object.keys(byLetter).sort().map((l) => `
   <h2 class="letter" id="${l}">${l}</h2>
   <ul class="word-list">
-    ${byLetter[l].map((w) => `<li><a href="/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${posAbbrev[w.pos] || w.pos}</span> — ${esc(w.definition)}</li>`).join('\n    ')}
+    ${byLetter[l].map((w) => `<li><a href="${L.prefix}/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${posAbbrev[w.pos] || w.pos}</span> — ${esc(defIn(w, loc))}</li>`).join('\n    ')}
   </ul>`).join('\n')}
 </section>`,
-}));
+  }));
 
-// --- category pages ---
-for (const [slug, list] of Object.entries(byCategory)) {
-  const c = catInfo(slug);
-  page(`/category/${slug}/`, layout({
-    title: c.name,
-    description: `${c.desc || c.name} — ${list.length} words in the Neologicon.`,
-    path: `/category/${slug}/`,
-    content: `
+  // --- category pages ---
+  for (const [slug, list] of Object.entries(byCategory)) {
+    const [name, desc] = catInfo(slug, L);
+    page(`${L.prefix}/category/${slug}/`, layout(L, {
+      title: name,
+      description: `${desc || name} — ${fmt(s.nWords, list.length)}.`,
+      path: `/category/${slug}/`,
+      content: `
 <section class="section">
-  <p class="crumb"><a href="/">neologicon</a> / category</p>
-  <h1 class="page-title">${esc(c.name)}</h1>
-  ${c.desc ? `<p class="page-sub">${esc(c.desc)}</p>` : ''}
+  <p class="crumb"><a href="${L.prefix}/">neologicon</a> / ${s.catCrumb}</p>
+  <h1 class="page-title">${esc(name)}</h1>
+  ${desc ? `<p class="page-sub">${esc(desc)}</p>` : ''}
   <div class="card-grid">
-    ${list.map((w) => wordCard(w)).join('\n')}
+    ${list.map((w) => wordCard(w, L)).join('\n')}
   </div>
 </section>`,
-  }));
-}
+    }));
+  }
 
-// --- word pages ---
-words.forEach((w, i) => {
-  const prev = words[(i - 1 + words.length) % words.length];
-  const next = words[(i + 1) % words.length];
-  const c = catInfo(w.category);
-  page(`/word/${w.slug}/`, layout({
-    title: w.word,
-    description: `${w.word} (${w.pos}): ${w.definition}`,
-    path: `/word/${w.slug}/`,
-    bodyClass: 'entry-page',
-    content: `
+  // --- word pages ---
+  words.forEach((w, i) => {
+    const prev = words[(i - 1 + words.length) % words.length];
+    const next = words[(i + 1) % words.length];
+    const [catName] = catInfo(w.category, L);
+    const def = defIn(w, loc);
+    const hasTranslation = loc !== 'en' && TR[loc]?.[w.slug];
+    const jsonld = loc === 'en'
+      ? `\n<script type="application/ld+json">${JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'DefinedTerm',
+          name: w.word,
+          description: w.definition,
+          url: `${SITE.url}/word/${w.slug}/`,
+          inDefinedTermSet: { '@type': 'DefinedTermSet', name: SITE.title, url: SITE.url },
+        })}</script>`
+      : '';
+    page(`${L.prefix}/word/${w.slug}/`, layout(L, {
+      title: w.word,
+      description: `${w.word} (${w.pos}): ${def}`,
+      path: `/word/${w.slug}/`,
+      bodyClass: 'entry-page',
+      content: `
 <article class="entry">
-  <p class="crumb"><a href="/">neologicon</a> / <a href="/category/${w.category}/">${esc(c.name.toLowerCase())}</a></p>
-  <h1 class="entry-word">${esc(w.word)}</h1>
+  <p class="crumb"><a href="${L.prefix}/">neologicon</a> / <a href="${L.prefix}/category/${w.category}/">${esc(catName.toLowerCase())}</a></p>
+  <h1 class="entry-word" lang="en">${esc(w.word)}</h1>
   <p class="entry-meta"><span class="pos">${posAbbrev[w.pos] || w.pos}</span>${w.pronunciation ? ` · <span class="pron">/${esc(w.pronunciation)}/</span>` : ''}</p>
-  <p class="entry-def">${esc(w.definition)}</p>
-  ${w.example ? `<blockquote class="entry-ex">"${esc(w.example)}"</blockquote>` : ''}
+  <p class="entry-def">${esc(def)}</p>
+  ${hasTranslation ? `<p class="entry-def-original" lang="en">${esc(w.definition)}</p>` : ''}
+  ${w.example ? `<blockquote class="entry-ex" lang="en">"${esc(w.example)}"</blockquote>` : ''}
   <dl class="entry-facts">
-    <div><dt>coined by</dt><dd>${esc(w.author)}</dd></div>
-    ${w.added ? `<div><dt>added</dt><dd>${esc(w.added)}</dd></div>` : ''}
-    <div><dt>category</dt><dd><a href="/category/${w.category}/">${esc(c.name)}</a></dd></div>
+    <div><dt>${s.coinedBy}</dt><dd>${esc(w.author)}</dd></div>
+    ${w.added ? `<div><dt>${s.added}</dt><dd>${esc(w.added)}</dd></div>` : ''}
+    <div><dt>${s.category}</dt><dd><a href="${L.prefix}/category/${w.category}/">${esc(catName)}</a></dd></div>
   </dl>
-  <p class="entry-edit"><a href="${SITE.repo}/edit/main/words/${w.slug}.md" rel="noopener">Suggest an edit on GitHub ↗</a></p>
+  <p class="entry-edit"><a href="${SITE.repo}/edit/main/words/${w.slug}.md" rel="noopener">${s.suggestEdit}</a></p>
   <nav class="pager">
-    <a href="/word/${prev.slug}/">← ${esc(prev.word)}</a>
-    <a href="/word/${next.slug}/">${esc(next.word)} →</a>
+    <a href="${L.prefix}/word/${prev.slug}/">← ${esc(prev.word)}</a>
+    <a href="${L.prefix}/word/${next.slug}/">${esc(next.word)} →</a>
   </nav>
-</article>
-<script type="application/ld+json">${JSON.stringify({
-  '@context': 'https://schema.org',
-  '@type': 'DefinedTerm',
-  name: w.word,
-  description: w.definition,
-  url: `${SITE.url}/word/${w.slug}/`,
-  inDefinedTermSet: { '@type': 'DefinedTermSet', name: SITE.title, url: SITE.url },
-})}</script>`,
-  }));
-});
+</article>${jsonld}`,
+    }));
+  });
 
-// --- random ---
-page('/random/', layout({
-  title: 'Random word',
-  description: 'A random word from the Neologicon.',
-  path: '/random/',
-  bodyClass: 'random-page',
-  content: `
+  // --- random ---
+  page(`${L.prefix}/random/`, layout(L, {
+    title: s.randomTitle,
+    description: s.randomTitle,
+    path: '/random/',
+    bodyClass: 'random-page',
+    noindex: true,
+    content: `
 <section class="section">
-  <h1 class="page-title">Rolling the dice…</h1>
-  <noscript><p>JavaScript is off — try <a href="/all/">the full list</a> instead.</p></noscript>
+  <h1 class="page-title">${s.randomTitle}</h1>
+  <noscript><p>${s.randomNoscript} <a href="${L.prefix}/all/">→</a></p></noscript>
 </section>`,
-}));
+  }));
 
-// --- about ---
-page('/about/', layout({
-  title: 'About',
-  description: 'What Neologicon is and how to add a word.',
-  path: '/about/',
-  content: `
-<section class="section prose">
-  <h1 class="page-title">About</h1>
+  // --- about ---
+  const aboutBody = loc === 'en' ? `
   <p><strong>Neologicon</strong> is a dictionary of neologisms: invented words for the feelings, sounds, and tiny moments English forgot to name. The criterion for inclusion is simple — a word should feel obvious in retrospect, as though it fills a gap that genuinely existed.</p>
   <h2>How it works</h2>
   <p>The whole dictionary lives in a <a href="${SITE.repo}" rel="noopener">public GitHub repository</a>. Every word is a small markdown file. The site rebuilds and redeploys automatically whenever the repository changes.</p>
@@ -317,35 +417,74 @@ A one-sentence definition of the word.
   <ol start="3">
     <li>Open a pull request. Once it's merged, the word is live.</li>
   </ol>
-  <p>Ground rules: the word must not already exist in English, the definition should name something real but unnamed, and keep it kind. See <a href="${SITE.repo}/blob/main/CONTRIBUTING.md" rel="noopener">CONTRIBUTING.md</a> for details.</p>
-</section>`,
-}));
+  <p>Ground rules: the word must not already exist in English, the definition should name something real but unnamed, and keep it kind. See <a href="${SITE.repo}/blob/main/CONTRIBUTING.md" rel="noopener">CONTRIBUTING.md</a> for details.</p>` : {
+    hi: `
+  <p><strong>Neologicon</strong> नवशब्दों का शब्दकोश है: उन एहसासों, आवाज़ों और छोटे पलों के लिए गढ़े गए शब्द जिन्हें अंग्रेज़ी नाम देना भूल गई। शामिल होने की कसौटी सरल है — शब्द ऐसा लगे मानो वह हमेशा से होना चाहिए था।</p>
+  <h2>यह कैसे काम करता है</h2>
+  <p>पूरा शब्दकोश एक <a href="${SITE.repo}" rel="noopener">सार्वजनिक GitHub repository</a> में रहता है। हर शब्द एक छोटी markdown फ़ाइल है। Repository बदलते ही साइट अपने-आप दोबारा बनकर प्रकाशित हो जाती है।</p>
+  <h2>शब्द जोड़ें</h2>
+  <p><code>words/</code> फ़ोल्डर में <a href="${SITE.repo}/new/main/words" rel="noopener">नई फ़ाइल बनाएँ</a> (अंग्रेज़ी टेम्पलेट <a href="${SITE.repo}/blob/main/CONTRIBUTING.md" rel="noopener">CONTRIBUTING.md</a> में है) और pull request खोलें। Merge होते ही शब्द लाइव हो जाता है। परिभाषाओं के अनुवाद <code>translations/</code> में रहते हैं।</p>
+  <p>बुनियादी नियम: शब्द अंग्रेज़ी में पहले से न हो, परिभाषा किसी असली पर बेनाम अनुभव को नाम दे, और भाव सदाशय रहे।</p>`,
+    es: `
+  <p><strong>Neologicon</strong> es un diccionario de neologismos: palabras inventadas para las sensaciones, los sonidos y los pequeños momentos que el inglés olvidó nombrar. El criterio de inclusión es simple: la palabra debe parecer obvia en retrospectiva, como si llenara un hueco que realmente existía.</p>
+  <h2>Cómo funciona</h2>
+  <p>Todo el diccionario vive en un <a href="${SITE.repo}" rel="noopener">repositorio público de GitHub</a>. Cada palabra es un pequeño archivo markdown. El sitio se reconstruye y despliega automáticamente con cada cambio.</p>
+  <h2>Añade una palabra</h2>
+  <p><a href="${SITE.repo}/new/main/words" rel="noopener">Crea un archivo nuevo</a> en la carpeta <code>words/</code> (la plantilla en inglés está en <a href="${SITE.repo}/blob/main/CONTRIBUTING.md" rel="noopener">CONTRIBUTING.md</a>) y abre un pull request. Al fusionarse, la palabra queda publicada. Las traducciones de las definiciones viven en <code>translations/</code>.</p>
+  <p>Reglas básicas: la palabra no debe existir ya en inglés, la definición debe nombrar algo real pero sin nombre, y siempre con amabilidad.</p>`,
+    fr: `
+  <p><strong>Neologicon</strong> est un dictionnaire de néologismes : des mots inventés pour les sensations, les sons et les petits instants que l’anglais a oublié de nommer. Le critère d’admission est simple : le mot doit sembler évident a posteriori, comme s’il comblait un vide qui existait vraiment.</p>
+  <h2>Comment ça marche</h2>
+  <p>Tout le dictionnaire vit dans un <a href="${SITE.repo}" rel="noopener">dépôt GitHub public</a>. Chaque mot est un petit fichier markdown. Le site se reconstruit et se redéploie automatiquement à chaque changement.</p>
+  <h2>Ajouter un mot</h2>
+  <p><a href="${SITE.repo}/new/main/words" rel="noopener">Créez un nouveau fichier</a> dans le dossier <code>words/</code> (le gabarit en anglais se trouve dans <a href="${SITE.repo}/blob/main/CONTRIBUTING.md" rel="noopener">CONTRIBUTING.md</a>) puis ouvrez une pull request. Une fois fusionné, le mot est en ligne. Les traductions des définitions vivent dans <code>translations/</code>.</p>
+  <p>Règles de base : le mot ne doit pas déjà exister en anglais, la définition doit nommer quelque chose de réel mais d’innommé, et l’esprit reste bienveillant.</p>`,
+  }[loc];
 
-// --- 404 ---
-writeFileSync(join(DIST, '404.html'), layout({
+  page(`${L.prefix}/about/`, layout(L, {
+    title: s.aboutTitle,
+    description: s.tagline,
+    path: '/about/',
+    content: `
+<section class="section prose">
+  <h1 class="page-title">${s.aboutTitle}</h1>${aboutBody}
+</section>`,
+  }));
+
+  // --- per-locale search data ---
+  const data = JSON.stringify(
+    words.map((w) => ({ slug: w.slug, word: w.word, pos: w.pos, category: w.category, definition: defIn(w, loc), example: w.example })),
+  );
+  if (loc === 'en') writeFileSync(join(DIST, 'words.json'), data);
+  else writeFileSync(join(DIST, loc, 'words.json'), data);
+}
+
+// --- 404 (root, English — Cloudflare Pages serves the root 404.html) ---
+const sEn = LOCALES.en.s;
+writeFileSync(join(DIST, '404.html'), layout(LOCALES.en, {
   title: 'Not a word (yet)',
   description: 'Page not found.',
   path: '/404',
   noindex: true,
   content: `
 <section class="section">
-  <h1 class="page-title">Not a word. <em>Yet.</em></h1>
-  <p class="page-sub">This page doesn't exist — but maybe the word should. <a href="${SITE.repo}/new/main/words" rel="noopener">Coin it?</a></p>
-  <p class="more-link"><a href="/">← Back to the dictionary</a></p>
+  <h1 class="page-title">${sEn.e404Title}</h1>
+  <p class="page-sub">${sEn.e404Sub} <a href="${SITE.repo}/new/main/words" rel="noopener">${sEn.e404Coin}</a></p>
+  <p class="more-link"><a href="/">${sEn.e404Back}</a></p>
 </section>`,
 }));
 
-// --- data + assets ---
-writeFileSync(join(DIST, 'words.json'), JSON.stringify(
-  words.map((w) => ({ slug: w.slug, word: w.word, pos: w.pos, category: w.category, definition: w.definition, example: w.example })),
-));
-
+// --- shared assets ---
 writeFileSync(join(DIST, 'favicon.svg'),
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#d9481f"/><text x="32" y="46" font-family="Georgia,serif" font-style="italic" font-size="42" fill="#f7f2e7" text-anchor="middle">n</text></svg>`);
 
 writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE.url}/sitemap.xml\n`);
 
-// Security headers (honored by Cloudflare Pages; harmless elsewhere)
+const pathsOneLocale = ['/', '/all/', '/about/', ...Object.keys(byCategory).map((c) => `/category/${c}/`), ...words.map((w) => `/word/${w.slug}/`)];
+const urls = Object.values(LOCALES).flatMap((L) => pathsOneLocale.map((p) => `${L.prefix}${p}`));
+writeFileSync(join(DIST, 'sitemap.xml'),
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${SITE.url}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
+
 writeFileSync(join(DIST, '_headers'), `/*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -353,11 +492,9 @@ writeFileSync(join(DIST, '_headers'), `/*
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
 `);
 
-const urls = ['/', '/all/', '/about/', ...Object.keys(byCategory).map((c) => `/category/${c}/`), ...words.map((w) => `/word/${w.slug}/`)];
-writeFileSync(join(DIST, 'sitemap.xml'),
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${SITE.url}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
-
 copyFileSync(join(ROOT, 'site', 'styles.css'), join(DIST, 'styles.css'));
 copyFileSync(join(ROOT, 'site', 'app.js'), join(DIST, 'app.js'));
 
-console.log(`built ${words.length} words → dist/ (${urls.length + 1} pages)`);
+const missing = Object.entries(TR).flatMap(([loc, map]) => words.filter((w) => !map[w.slug]).map((w) => `${loc}:${w.slug}`));
+console.log(`built ${words.length} words × ${Object.keys(LOCALES).length} locales → dist/ (${urls.length + 1} pages)`);
+if (missing.length) console.log(`note: ${missing.length} missing translations (fall back to English): ${missing.slice(0, 10).join(', ')}${missing.length > 10 ? '…' : ''}`);

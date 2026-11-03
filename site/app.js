@@ -1,8 +1,11 @@
-// Neologicon client: search, word of the day, random redirect.
+// Neologicon client: search, word of the day, random redirect. Locale-aware via body data attributes.
 (() => {
+  const ds = document.body.dataset;
+  const prefix = ds.prefix || '';
+
   let words = null;
   const loadWords = async () => {
-    if (!words) words = await (await fetch('/words.json')).json();
+    if (!words) words = await (await fetch(`${prefix}/words.json`)).json();
     return words;
   };
 
@@ -10,7 +13,7 @@
   if (document.body.classList.contains('random-page')) {
     loadWords().then((list) => {
       const pick = list[Math.floor(Math.random() * list.length)];
-      location.replace(`/word/${pick.slug}/`);
+      location.replace(`${prefix}/word/${pick.slug}/`);
     });
     return;
   }
@@ -21,9 +24,9 @@
     loadWords().then((list) => {
       const w = list[Math.floor(Date.now() / 86400000) % list.length];
       const link = wotdBox.querySelector('.card-word a');
-      if (link && link.getAttribute('href') !== `/word/${w.slug}/`) {
+      if (link && link.getAttribute('href') !== `${prefix}/word/${w.slug}/`) {
         link.textContent = w.word;
-        link.setAttribute('href', `/word/${w.slug}/`);
+        link.setAttribute('href', `${prefix}/word/${w.slug}/`);
         wotdBox.querySelector('.card-word .pos').textContent =
           { noun: 'n.', verb: 'v.', adjective: 'adj.', adverb: 'adv.' }[w.pos] || w.pos;
         wotdBox.querySelector('.card-def').textContent = w.definition;
@@ -48,8 +51,8 @@
     results.hidden = false;
     results.innerHTML = hits.length
       ? hits.slice(0, 12).map((w) =>
-          `<a href="/word/${w.slug}/"><strong>${w.word}</strong> <span>· ${w.definition}</span></a>`).join('')
-      : `<p class="no-hit">No match for "${query.replace(/[<>&"]/g, '')}" — <a href="${document.querySelector('.contribute .button')?.href || '/about/'}">coin it?</a></p>`;
+          `<a href="${prefix}/word/${w.slug}/"><strong>${w.word}</strong> <span>· ${w.definition}</span></a>`).join('')
+      : `<p class="no-hit">${ds.nomatch || 'No match'} — <a href="${ds.coinhref || prefix + '/about/'}">${ds.coinit || 'coin it?'}</a></p>`;
   };
 
   input.addEventListener('input', async () => {
@@ -71,7 +74,7 @@
   });
 
   input.addEventListener('keydown', (e) => {
-    const links = [...results.querySelectorAll('a[href^="/word/"]')];
+    const links = [...results.querySelectorAll('a[href*="/word/"]')];
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!links.length) return;

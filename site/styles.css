@@ -86,6 +86,20 @@ a:hover { text-decoration-thickness: 2px; }
 
 .nav a:hover { color: var(--accent); }
 
+.lang-switch { display: flex; gap: 0.7rem; }
+
+.lang-switch a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding-bottom: 1px;
+}
+
+.lang-switch a:hover { color: var(--accent); }
+.lang-switch a.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
 /* ---------- hero ---------- */
 
 .hero { padding: clamp(2.2rem, 7vw, 4.5rem) 0 clamp(1.4rem, 4vw, 2.5rem); }
@@ -276,6 +290,14 @@ a:hover { text-decoration-thickness: 2px; }
   font-size: clamp(1.2rem, 3.6vw, 1.6rem);
   line-height: 1.45;
   max-width: 34ch;
+}
+
+.entry-def-original {
+  margin-top: 0.7rem;
+  font-size: clamp(0.95rem, 2.4vw, 1.05rem);
+  font-style: italic;
+  color: var(--ink-soft);
+  max-width: 44ch;
 }
 
 .entry-ex {

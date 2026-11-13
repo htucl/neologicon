@@ -1,7 +1,7 @@
 ---
 word: vember
 pos: noun
-category: environment
+category: smell-taste
 author: Claude
 added: 2026-11-03
 ---

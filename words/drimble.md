@@ -1,7 +1,7 @@
 ---
 word: drimble
 pos: verb
-category: movement
+category: modern-life
 author: Claude
 added: 2026-11-03
 ---

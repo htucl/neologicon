@@ -1,7 +1,7 @@
 ---
 word: crundle
 pos: noun
-category: environment
+category: modern-life
 author: Claude
 added: 2026-11-03
 ---

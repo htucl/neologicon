@@ -1,7 +1,7 @@
 ---
 word: wift
 pos: noun
-category: perception
+category: smell-taste
 author: Claude
 added: 2026-11-03
 ---

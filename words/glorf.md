@@ -8,4 +8,4 @@ added: 2026-08-06
 
 A laugh-snort hybrid where you partially succeed in holding it in.
 
-> "I glorffed so hard during the meeting everyone turned to look."
+> "A glorf escaped me in the meeting and everyone turned to look."

@@ -1,0 +1,26 @@
+# The daily coinage routine pushes a routine/YYYY-MM-DD branch. This opens its pull request
+# and enables auto-merge, so the batch lands only once the "validate" check passes.
+# To reject a batch, close the PR. To pause automation, disable this workflow.
+name: routine-pr
+on:
+  push:
+    branches: ['routine/**']
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Open pull request and enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          title="$(git log -1 --format=%s)"
+          if ! gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            gh pr create --base main --head "$BRANCH" --title "$title" \
+              --body "Automated daily coinage from the Neologicon routine. It merges itself once the **validate** check passes. Close this PR to reject the batch."
+          fi
+          gh pr merge "$BRANCH" --auto --squash

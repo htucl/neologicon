@@ -1,0 +1,38 @@
+# Builds the site and runs the content gate on every push and pull request.
+# "validate" is the required status check on main.
+name: validate
+on:
+  push:
+    branches: ['**']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Install dictionaries (real-word check)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends wamerican wbritish
+          cat /usr/share/dict/american-english /usr/share/dict/british-english > "$RUNNER_TEMP/wordlist"
+      - name: Build
+        run: node build.mjs
+      - name: Check new words
+        env:
+          WORDLIST: ${{ runner.temp }}/wordlist
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          # routine branches and outside contributors may only add words and edit translations
+          ADDS_ONLY: ${{ startsWith(github.head_ref || github.ref_name, 'routine/') || github.actor != github.repository_owner }}
+        run: |
+          git fetch -q origin main
+          node scripts/check-words.mjs --base "$BASE" $([ "$ADDS_ONLY" = true ] && echo --adds-only)

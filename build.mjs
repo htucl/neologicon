@@ -104,53 +104,91 @@ const DIST = join(ROOT, 'dist');
 
 // ---------- parse ----------
 
+const POS = ['noun', 'verb', 'adjective', 'adverb', 'interjection'];
+const META_KEYS = ['word', 'pos', 'category', 'author', 'added', 'pronunciation'];
+const LIMITS = { word: 40, author: 80, pronunciation: 80, definition: 400, example: 300, translation: 600 };
+// C0 controls (except \n handled earlier) and Unicode bidi overrides/isolates
+const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f‪-‮⁦-⁩]/;
+const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+function checkText(filename, field, value, max) {
+  if (BAD_CHARS.test(value)) throw new Error(`${filename}: "${field}" contains control or bidi characters`);
+  if (value.length > max) throw new Error(`${filename}: "${field}" is ${value.length} chars (max ${max})`);
+}
+
 function parseEntry(filename) {
-  const raw = readFileSync(join(ROOT, 'words', filename), 'utf8');
+  const raw = readFileSync(join(ROOT, 'words', filename), 'utf8').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
   const m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!m) throw new Error(`${filename}: missing frontmatter`);
   const meta = {};
   for (const line of m[1].split('\n')) {
+    if (!line.trim()) continue;
     const kv = line.match(/^([a-z_]+):\s*(.*)$/);
-    if (kv) meta[kv[1]] = kv[2].trim().replace(/^["']|["']$/g, '');
+    if (!kv) throw new Error(`${filename}: malformed frontmatter line "${line}"`);
+    if (!META_KEYS.includes(kv[1])) throw new Error(`${filename}: unknown field "${kv[1]}" (allowed: ${META_KEYS.join(', ')})`);
+    meta[kv[1]] = kv[2].trim().replace(/^(["'])(.*)\1$/, '$2');
   }
   const slug = filename.replace(/\.md$/, '');
-  if (!meta.word) throw new Error(`${filename}: missing "word" field`);
+  for (const k of ['word', 'pos', 'category', 'author', 'added']) {
+    if (!meta[k]) throw new Error(`${filename}: missing "${k}" field`);
+  }
+  if (!/^[A-Za-z][A-Za-z' -]*$/.test(meta.word)) throw new Error(`${filename}: word may only contain letters, spaces, hyphens and apostrophes`);
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) throw new Error(`${filename}: filename must be lowercase letters/digits with single hyphens`);
   if (meta.word.toLowerCase().replace(/[^a-z0-9]+/g, '-') !== slug) {
     throw new Error(`${filename}: filename must match word ("${meta.word}")`);
   }
+  if (!POS.includes(meta.pos)) throw new Error(`${filename}: pos must be one of ${POS.join('|')} (got "${meta.pos}")`);
+  if (!CATEGORIES.includes(meta.category)) throw new Error(`${filename}: category must be one of ${CATEGORIES.join('|')} (got "${meta.category}")`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(meta.added) || Number.isNaN(Date.parse(meta.added))) throw new Error(`${filename}: added must be a date YYYY-MM-DD`);
+  if (meta.added > tomorrow) throw new Error(`${filename}: added (${meta.added}) is in the future`);
   const body = m[2].trim().split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
-  const definition = body.find((b) => !b.startsWith('>')) || '';
-  const exampleBlock = body.find((b) => b.startsWith('>'));
-  const example = exampleBlock
-    ? exampleBlock.split('\n').map((l) => l.replace(/^>\s?/, '')).join(' ').replace(/^[""]|[""]$/g, '').replace(/^"|"$/g, '')
+  const paras = body.filter((b) => !b.startsWith('>'));
+  const quotes = body.filter((b) => b.startsWith('>'));
+  if (paras.length !== 1) throw new Error(`${filename}: body must be exactly one definition paragraph (found ${paras.length})`);
+  if (quotes.length > 1) throw new Error(`${filename}: at most one example blockquote`);
+  const definition = paras[0].replace(/\s*\n\s*/g, ' ');
+  const example = quotes.length
+    ? quotes[0].split('\n').map((l) => l.replace(/^>\s?/, '')).join(' ').trim().replace(/^[“”"]|[“”"]$/g, '')
     : '';
-  if (!definition) throw new Error(`${filename}: missing definition body`);
-  return {
+  const entry = {
     slug,
     word: meta.word,
-    pos: meta.pos || 'noun',
-    category: meta.category || 'uncategorized',
-    author: meta.author || 'anonymous',
-    added: meta.added || '',
+    pos: meta.pos,
+    category: meta.category,
+    author: meta.author,
+    added: meta.added,
     pronunciation: meta.pronunciation || '',
     definition,
     example,
   };
+  for (const k of ['word', 'author', 'pronunciation', 'definition', 'example']) checkText(filename, k, entry[k], LIMITS[k]);
+  return entry;
 }
 
 const words = readdirSync(join(ROOT, 'words'))
   .filter((f) => f.endsWith('.md'))
   .map(parseEntry)
-  .sort((a, b) => a.word.localeCompare(b.word));
+  .sort((a, b) => a.word.localeCompare(b.word, 'en'));
 
 if (words.length === 0) throw new Error('No word entries found in words/');
 
 // translations: { locale: { slug: definition } }
+const slugs = new Set(words.map((w) => w.slug));
 const TR = {};
 for (const loc of Object.keys(LOCALES)) {
   if (loc === 'en') continue;
   const file = join(ROOT, 'translations', `${loc}.json`);
-  TR[loc] = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  if (!existsSync(file)) { TR[loc] = {}; continue; }
+  let map;
+  try { map = JSON.parse(readFileSync(file, 'utf8')); }
+  catch (e) { throw new Error(`translations/${loc}.json: invalid JSON — ${e.message}`); }
+  if (!map || typeof map !== 'object' || Array.isArray(map)) throw new Error(`translations/${loc}.json: must be an object of slug → definition`);
+  for (const [slug, text] of Object.entries(map)) {
+    if (!slugs.has(slug)) throw new Error(`translations/${loc}.json: key "${slug}" has no matching words/${slug}.md`);
+    if (typeof text !== 'string' || !text.trim()) throw new Error(`translations/${loc}.json: "${slug}" must be a non-empty string`);
+    checkText(`translations/${loc}.json`, slug, text, LIMITS.translation);
+  }
+  TR[loc] = map;
 }
 const defIn = (w, loc) => (loc === 'en' ? w.definition : TR[loc]?.[w.slug] || w.definition);
 
@@ -225,7 +263,7 @@ const posAbbrev = { noun: 'n.', verb: 'v.', adjective: 'adj.', adverb: 'adv.', i
 
 function wordCard(w, L, { big = false } = {}) {
   return `<article class="card${big ? ' card-big' : ''}">
-  <h3 class="card-word"><a href="${L.prefix}/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${posAbbrev[w.pos] || w.pos}</span></h3>
+  <h3 class="card-word"><a href="${L.prefix}/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${esc(posAbbrev[w.pos])}</span></h3>
   <p class="card-def">${esc(defIn(w, L.htmlLang))}</p>
   ${w.example ? `<blockquote class="card-ex" lang="en">"${esc(w.example)}"</blockquote>` : ''}
 </article>`;
@@ -244,7 +282,7 @@ function page(fullPath, html) {
 
 const wotdIndex = Math.floor(Date.now() / 86400000) % words.length;
 const recent = [...words]
-  .sort((a, b) => (b.added || '').localeCompare(a.added || '') || a.word.localeCompare(b.word))
+  .sort((a, b) => b.added.localeCompare(a.added, 'en') || a.word.localeCompare(b.word, 'en'))
   .slice(0, 6);
 
 for (const L of Object.values(LOCALES)) {
@@ -311,7 +349,7 @@ for (const L of Object.values(LOCALES)) {
   ${Object.keys(byLetter).sort().map((l) => `
   <h2 class="letter" id="${l}">${l}</h2>
   <ul class="word-list">
-    ${byLetter[l].map((w) => `<li><a href="${L.prefix}/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${posAbbrev[w.pos] || w.pos}</span> — ${esc(defIn(w, loc))}</li>`).join('\n    ')}
+    ${byLetter[l].map((w) => `<li><a href="${L.prefix}/word/${w.slug}/">${esc(w.word)}</a> <span class="pos">${esc(posAbbrev[w.pos])}</span> — ${esc(defIn(w, loc))}</li>`).join('\n    ')}
   </ul>`).join('\n')}
 </section>`,
   }));
@@ -350,7 +388,7 @@ for (const L of Object.values(LOCALES)) {
           description: w.definition,
           url: `${SITE.url}/word/${w.slug}/`,
           inDefinedTermSet: { '@type': 'DefinedTermSet', name: SITE.title, url: SITE.url },
-        })}</script>`
+        }).replace(/</g, '\\u003c')}</script>`
       : '';
     page(`${L.prefix}/word/${w.slug}/`, layout(L, {
       title: w.word,
@@ -361,7 +399,7 @@ for (const L of Object.values(LOCALES)) {
 <article class="entry">
   <p class="crumb"><a href="${L.prefix}/">neologicon</a> / <a href="${L.prefix}/category/${w.category}/">${esc(catName.toLowerCase())}</a></p>
   <h1 class="entry-word" lang="en">${esc(w.word)}</h1>
-  <p class="entry-meta"><span class="pos">${posAbbrev[w.pos] || w.pos}</span>${w.pronunciation ? ` · <span class="pron">/${esc(w.pronunciation)}/</span>` : ''}</p>
+  <p class="entry-meta"><span class="pos">${esc(posAbbrev[w.pos])}</span>${w.pronunciation ? ` · <span class="pron">/${esc(w.pronunciation)}/</span>` : ''}</p>
   <p class="entry-def">${esc(def)}</p>
   ${hasTranslation ? `<p class="entry-def-original" lang="en">${esc(w.definition)}</p>` : ''}
   ${w.example ? `<blockquote class="entry-ex" lang="en">"${esc(w.example)}"</blockquote>` : ''}
@@ -486,10 +524,16 @@ writeFileSync(join(DIST, 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${SITE.url}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 
 writeFileSync(join(DIST, '_headers'), `/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cross-Origin-Opener-Policy: same-origin
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+
+# keep the *.pages.dev mirror and preview deployments out of search results
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
 `);
 
 copyFileSync(join(ROOT, 'site', 'styles.css'), join(DIST, 'styles.css'));

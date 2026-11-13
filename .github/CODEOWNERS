@@ -1,0 +1,7 @@
+# Code and configuration need the maintainer's review. Word files and translations are open to everyone.
+/build.mjs        @htucl
+/serve.mjs        @htucl
+/package.json     @htucl
+/site/            @htucl
+/scripts/         @htucl
+/.github/         @htucl

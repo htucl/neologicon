@@ -4,3 +4,6 @@ node_modules/
 _legacy-php/
 .idea/
 .wrangler/
+.env*
+.dev.vars
+*.pem

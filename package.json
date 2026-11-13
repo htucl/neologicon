@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A GitHub-driven dictionary of neologisms — words that should have existed.",
+  "description": "A GitHub-driven dictionary of neologisms \u2014 words that should have existed.",
   "scripts": {
     "build": "node build.mjs",
     "serve": "node serve.mjs",
-    "dev": "node build.mjs && node serve.mjs"
+    "dev": "node build.mjs && node serve.mjs",
+    "check": "node scripts/check-words.mjs --base origin/main"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

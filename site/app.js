@@ -3,18 +3,21 @@
   const ds = document.body.dataset;
   const prefix = ds.prefix || '';
 
-  let words = null;
-  const loadWords = async () => {
-    if (!words) words = await (await fetch(`${prefix}/words.json`)).json();
-    return words;
+  // one in-flight/settled promise shared by WOTD, focus and typing; reset on failure so a retry is possible
+  let wordsPromise = null;
+  const loadWords = () => {
+    wordsPromise ??= fetch(`${prefix}/words.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`words.json ${r.status}`))))
+      .catch((e) => { wordsPromise = null; throw e; });
+    return wordsPromise;
   };
 
   // --- random page ---
   if (document.body.classList.contains('random-page')) {
     loadWords().then((list) => {
       const pick = list[Math.floor(Math.random() * list.length)];
-      location.replace(`${prefix}/word/${pick.slug}/`);
-    });
+      location.replace(`${prefix}/word/${encodeURIComponent(pick.slug)}/`);
+    }).catch(() => { /* the noscript/fallback link stays visible */ });
     return;
   }
 
@@ -28,12 +31,12 @@
         link.textContent = w.word;
         link.setAttribute('href', `${prefix}/word/${w.slug}/`);
         wotdBox.querySelector('.card-word .pos').textContent =
-          { noun: 'n.', verb: 'v.', adjective: 'adj.', adverb: 'adv.' }[w.pos] || w.pos;
+          { noun: 'n.', verb: 'v.', adjective: 'adj.', adverb: 'adv.', interjection: 'interj.' }[w.pos] || w.pos;
         wotdBox.querySelector('.card-def').textContent = w.definition;
         const ex = wotdBox.querySelector('.card-ex');
         if (ex) ex.textContent = w.example ? `"${w.example}"` : '';
       }
-    });
+    }).catch(() => { /* keep the server-rendered pick */ });
   }
 
   // --- search ---
@@ -45,20 +48,36 @@
 
   let active = -1;
 
+  // Results are built as DOM nodes, never HTML strings: words.json carries contributor- and translator-written text.
+  const el = (tag, props = {}, children = []) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
   const render = (hits, query) => {
-    if (!query) { results.hidden = true; results.innerHTML = ''; return; }
+    if (!query) { results.hidden = true; results.replaceChildren(); return; }
     active = -1;
     results.hidden = false;
-    results.innerHTML = hits.length
-      ? hits.slice(0, 12).map((w) =>
-          `<a href="${prefix}/word/${w.slug}/"><strong>${w.word}</strong> <span>· ${w.definition}</span></a>`).join('')
-      : `<p class="no-hit">${ds.nomatch || 'No match'} — <a href="${ds.coinhref || prefix + '/about/'}">${ds.coinit || 'coin it?'}</a></p>`;
+    if (hits.length) {
+      results.replaceChildren(...hits.slice(0, 12).map((w) =>
+        el('a', { href: `${prefix}/word/${encodeURIComponent(w.slug)}/` }, [
+          el('strong', { textContent: w.word }), ' ',
+          el('span', { textContent: `· ${w.definition}` }),
+        ])));
+    } else {
+      results.replaceChildren(el('p', { className: 'no-hit' }, [
+        `${ds.nomatch || 'No match'} — `,
+        el('a', { href: ds.coinhref || `${prefix}/about/`, textContent: ds.coinit || 'coin it?' }),
+      ]));
+    }
   };
 
   input.addEventListener('input', async () => {
     const q = input.value.trim().toLowerCase();
     if (!q) return render([], '');
-    const list = await loadWords();
+    let list;
+    try { list = await loadWords(); } catch { return; }
+    if (input.value.trim().toLowerCase() !== q) return; // a newer keystroke owns the results now
     const hits = list
       .map((w) => {
         let score = 0;

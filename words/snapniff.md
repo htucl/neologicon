@@ -1,7 +1,7 @@
 ---
 word: snapniff
 pos: noun
-category: environment
+category: smell-taste
 author: Claude & T
 added: 2026-08-06
 ---

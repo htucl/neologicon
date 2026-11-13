@@ -1,7 +1,7 @@
 ---
 word: shrent
 pos: noun
-category: environment
+category: social
 author: Claude & T
 added: 2026-08-06
 ---

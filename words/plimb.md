@@ -1,7 +1,7 @@
 ---
 word: plimb
 pos: noun
-category: perception
+category: modern-life
 author: Claude
 added: 2026-11-03
 ---

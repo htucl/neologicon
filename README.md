@@ -22,7 +22,7 @@ Create `words/yourword.md`:
 ---
 word: yourword
 pos: noun            # noun | verb | adjective | adverb | interjection
-category: social     # tactile | sounds | social | bodily | perception | movement | environment
+category: social     # tactile | sounds | social | bodily | perception | movement | environment | smell-taste | modern-life
 author: Your Name
 added: 2026-11-13
 ---

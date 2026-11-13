@@ -10,14 +10,14 @@ const SITE = {
   repo: process.env.REPO_URL || 'https://github.com/htucl/neologicon',
 };
 
-const CATEGORIES = ['tactile', 'sounds', 'social', 'bodily', 'perception', 'movement', 'environment'];
+const CATEGORIES = ['tactile', 'sounds', 'social', 'bodily', 'perception', 'movement', 'environment', 'smell-taste', 'modern-life'];
 
 // ---------- locales ----------
 
 const LOCALES = {
   en: {
     htmlLang: 'en', prefix: '', label: 'EN',
-    cat: { tactile: ['Tactile', 'Physical sensations & touch'], sounds: ['Sounds', 'Onomatopoeia & noises'], social: ['Social', 'Emotional & social moments'], bodily: ['Bodily', 'Bodily states & sensations'], perception: ['Perception', 'Visual & perceptual'], movement: ['Movement', 'Physical action'], environment: ['Environment', 'Sensory phenomena in the world'] },
+    cat: { tactile: ['Tactile', 'Physical sensations & touch'], sounds: ['Sounds', 'Onomatopoeia & noises'], social: ['Social', 'Emotional & social moments'], bodily: ['Bodily', 'Bodily states & sensations'], perception: ['Perception', 'Visual & perceptual'], movement: ['Movement', 'Physical action'], environment: ['Environment', 'Sensory phenomena in the world'], 'smell-taste': ['Smell & taste', 'Scents, flavours & the nose'], 'modern-life': ['Modern life', 'Phones, screens & the things we own'] },
     s: {
       tagline: 'Words that should have existed.',
       metaHome: 'A community dictionary of {n} neologisms — invented words for feelings, sounds, and moments English forgot to name.',
@@ -37,7 +37,7 @@ const LOCALES = {
   },
   hi: {
     htmlLang: 'hi', prefix: '/hi', label: 'हिंदी',
-    cat: { tactile: ['स्पर्श', 'शारीरिक एहसास और छुअन'], sounds: ['ध्वनियाँ', 'आवाज़ें और ध्वनि-अनुकरण'], social: ['सामाजिक', 'भावनात्मक और सामाजिक पल'], bodily: ['शारीरिक', 'शरीर की अवस्थाएँ'], perception: ['बोध', 'दृश्य और अनुभूति'], movement: ['गति', 'शारीरिक क्रिया'], environment: ['परिवेश', 'आसपास की संवेदी घटनाएँ'] },
+    cat: { tactile: ['स्पर्श', 'शारीरिक एहसास और छुअन'], sounds: ['ध्वनियाँ', 'आवाज़ें और ध्वनि-अनुकरण'], social: ['सामाजिक', 'भावनात्मक और सामाजिक पल'], bodily: ['शारीरिक', 'शरीर की अवस्थाएँ'], perception: ['बोध', 'दृश्य और अनुभूति'], movement: ['गति', 'शारीरिक क्रिया'], environment: ['परिवेश', 'आसपास की संवेदी घटनाएँ'], 'smell-taste': ['गंध और स्वाद', 'ख़ुशबू, स्वाद और नाक'], 'modern-life': ['आधुनिक जीवन', 'फ़ोन, स्क्रीन और हमारी चीज़ें'] },
     s: {
       tagline: 'शब्द जो होने चाहिए थे।',
       metaHome: '{n} नवशब्दों का सामुदायिक शब्दकोश — उन एहसासों, आवाज़ों और पलों के लिए गढ़े गए शब्द जिन्हें अंग्रेज़ी नाम देना भूल गई।',
@@ -57,7 +57,7 @@ const LOCALES = {
   },
   es: {
     htmlLang: 'es', prefix: '/es', label: 'ES',
-    cat: { tactile: ['Táctil', 'Sensaciones físicas y tacto'], sounds: ['Sonidos', 'Onomatopeyas y ruidos'], social: ['Social', 'Momentos emocionales y sociales'], bodily: ['Corporal', 'Estados del cuerpo'], perception: ['Percepción', 'Visual y perceptivo'], movement: ['Movimiento', 'Acción física'], environment: ['Entorno', 'Fenómenos sensoriales del mundo'] },
+    cat: { tactile: ['Táctil', 'Sensaciones físicas y tacto'], sounds: ['Sonidos', 'Onomatopeyas y ruidos'], social: ['Social', 'Momentos emocionales y sociales'], bodily: ['Corporal', 'Estados del cuerpo'], perception: ['Percepción', 'Visual y perceptivo'], movement: ['Movimiento', 'Acción física'], environment: ['Entorno', 'Fenómenos sensoriales del mundo'], 'smell-taste': ['Olfato y gusto', 'Olores, sabores y la nariz'], 'modern-life': ['Vida moderna', 'Teléfonos, pantallas y nuestras cosas'] },
     s: {
       tagline: 'Palabras que deberían haber existido.',
       metaHome: 'Un diccionario comunitario de {n} neologismos: palabras inventadas para sensaciones, sonidos y momentos que el inglés olvidó nombrar.',
@@ -77,7 +77,7 @@ const LOCALES = {
   },
   fr: {
     htmlLang: 'fr', prefix: '/fr', label: 'FR',
-    cat: { tactile: ['Tactile', 'Sensations physiques et toucher'], sounds: ['Sons', 'Onomatopées et bruits'], social: ['Social', 'Moments émotionnels et sociaux'], bodily: ['Corporel', 'États du corps'], perception: ['Perception', 'Visuel et perceptif'], movement: ['Mouvement', 'Action physique'], environment: ['Environnement', 'Phénomènes sensoriels du monde'] },
+    cat: { tactile: ['Tactile', 'Sensations physiques et toucher'], sounds: ['Sons', 'Onomatopées et bruits'], social: ['Social', 'Moments émotionnels et sociaux'], bodily: ['Corporel', 'États du corps'], perception: ['Perception', 'Visuel et perceptif'], movement: ['Mouvement', 'Action physique'], environment: ['Environnement', 'Phénomènes sensoriels du monde'], 'smell-taste': ['Odorat et goût', 'Odeurs, saveurs et le nez'], 'modern-life': ['Vie moderne', 'Téléphones, écrans et nos objets'] },
     s: {
       tagline: 'Des mots qui auraient dû exister.',
       metaHome: 'Un dictionnaire communautaire de {n} néologismes : des mots inventés pour les sensations, les sons et les instants que l’anglais a oublié de nommer.',

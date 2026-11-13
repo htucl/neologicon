@@ -23,7 +23,7 @@ Strong examples already in the dictionary: *chorp* (the one deafening chair-scra
 ---
 word: yourword
 pos: noun            # noun | verb | adjective | adverb | interjection
-category: social     # tactile | sounds | social | bodily | perception | movement | environment
+category: social     # tactile | sounds | social | bodily | perception | movement | environment | smell-taste | modern-life
 author: Your Name
 added: 2026-11-13
 pronunciation: yor-WORD   # please include one
@@ -53,5 +53,7 @@ Every word page has a "Suggest an edit on GitHub" link that opens the file in th
 | `perception` | visual & perceptual |
 | `movement` | physical action |
 | `environment` | sensory phenomena in the world |
+| `smell-taste` | scents, flavours & the nose |
+| `modern-life` | phones, screens & the things we own |
 
-These seven are the only valid values; the build rejects any other slug. If you think a category is missing, open an issue — adding one needs names and descriptions in all four languages.
+These nine are the only valid values; the build rejects any other slug. If you think a category is missing, open an issue — adding one needs names and descriptions in all four languages.
